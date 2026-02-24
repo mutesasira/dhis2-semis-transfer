@@ -43,8 +43,15 @@ const Transfer = ({ i18n }: { i18n: D2I18n }) => {
           [`${dataStoreData?.transfer?.destinySchool as unknown as string}:in:${school}`]
           : filterState.dataElements,
       }).then((resp: any) => {
-        void getOuDisplayName(resp?.data)
-        setPagination((prev: any) => ({ ...prev, totalPages: resp?.pagination?.totalPages, totalElements: resp?.pagination?.totalElements }))
+        const rows = Array.isArray(resp?.data) ? resp.data : [];
+        void getOuDisplayName(rows);
+        setPagination((prev: any) => ({
+          ...prev,
+          totalPages: resp?.pagination?.totalPages ?? 0,
+          totalElements: resp?.pagination?.totalElements ?? 0
+        }))
+      }).catch(() => {
+        void getOuDisplayName([]);
       });
     }
   }, [academicYear, sectionType, filterState, refetch, school, schoolName, pagination?.page, pagination?.pageSize, position]);

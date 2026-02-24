@@ -15,35 +15,35 @@ function OuNameContainer({ dataStoreData, setData, setModalDetails }: { setModal
     const { getComponent } = useGetComponent({ setModalDetails, dataStore: dataStoreData })
     const { transferConst } = useTransferConst({ dataStore: dataStoreData })
 
-    async function getOuDisplayName(tableData: any[]) {
+    async function getOuDisplayName(tableData: any[] = []) {
         setLoading(true);
 
-        const idHolder: Record<string, string> = {};
-        const destinySchool = dataStoreData.transfer.destinySchool;
-        const originSchool = dataStoreData.transfer.originSchool;
+        try {
+            const rows = Array.isArray(tableData) ? tableData : [];
+            const idHolder: Record<string, string> = {};
+            const destinySchool = dataStoreData.transfer.destinySchool;
+            const originSchool = dataStoreData.transfer.originSchool;
 
-        // Collect all unique OU IDs to fetch at once
-        const allOuIds = new Set<string>();
+            const allOuIds = new Set<string>();
 
-        for (const data of tableData) {
-            if (data[destinySchool]) allOuIds.add(data[destinySchool]);
-            if (data['ownershipOu']) allOuIds.add(data['ownershipOu']);
-        }
+            for (const data of rows) {
+                if (data?.[destinySchool]) allOuIds.add(data[destinySchool]);
+                if (data?.ownershipOu) allOuIds.add(data.ownershipOu);
+            }
 
-        // Fetch OU names only for unknown IDs
-        const ouIdsToFetch = Array.from(allOuIds).filter((id) => !idHolder[id]);
+            const ouIdsToFetch = Array.from(allOuIds).filter((id) => !idHolder[id]);
 
-        if (ouIdsToFetch.length > 0) {
-            const responses = await Promise.all(ouIdsToFetch.map((id) => getOuName(id).catch(() => null)));
+            if (ouIdsToFetch.length > 0) {
+                const responses = await Promise.all(ouIdsToFetch.map((id) => getOuName(id).catch(() => null)));
 
-            responses.forEach((res: any, i) => {
-                const id = ouIdsToFetch[i];
-                const name = res?.results?.name ?? id;
-                idHolder[id] = name;
-            });
+                responses.forEach((res: any, i) => {
+                    const id = ouIdsToFetch[i];
+                    const name = res?.results?.name ?? id;
+                    idHolder[id] = name;
+                });
+            }
 
-
-            for (const data of tableData) {
+            for (const data of rows) {
                 data[destinySchool] = idHolder[data[destinySchool]] || data[destinySchool];
                 data[originSchool] = idHolder[data['ownershipOu']] || data['ownershipOu'];
 
@@ -62,10 +62,13 @@ function OuNameContainer({ dataStoreData, setData, setModalDetails }: { setModal
                     data?.status == 'CANCELLED'
                 );
             }
-        }
 
-        setData(tableData);
-        setLoading(false);
+            setData(rows);
+        } catch {
+            setData(Array.isArray(tableData) ? tableData : []);
+        } finally {
+            setLoading(false);
+        }
     }
 
     return { getOuDisplayName, loaading }

@@ -1,10 +1,10 @@
 import { useState } from 'react'
 import { useRecoilState } from 'recoil'
-import { useDataEngine } from '@dhis2/app-runtime'
+import { useConfig, useDataEngine } from '@dhis2/app-runtime'
 import { useGetEventsByEnrollment } from '../events/useGetEventsByEnrollment'
 import { TableDataRefetch } from 'dhis2-semis-types'
 import { useTransferConst } from '../transferOptions/statusOptions'
-import { useShowAlerts, useUploadEvents } from 'dhis2-semis-functions'
+import { getOwnershipTransferQueryPropsCandidates, useShowAlerts, useUploadEvents } from 'dhis2-semis-functions'
 import { formatEnrollmentBody } from '../../utils/tei/enrollmentBody'
 import useGetUsedProgramStages from '../programStages/useGetUsedPProgramStages'
 import useGetSelectedKeys from '../config/useGetSelectedKeys'
@@ -12,14 +12,11 @@ import useGetSelectedKeys from '../config/useGetSelectedKeys'
 const TRANSFERQUERY: any = {
     resource: 'tracker/ownership/transfer',
     type: 'update',
-    params: ({ program, ou, trackedEntityInstance }: any) => ({
-        program,
-        orgUnit: ou,
-        trackedEntity: trackedEntityInstance
-    })
+    params: (params: any) => params
 }
 
 export function useTransferTEI({ selectedTei, handleCloseApproval }: { selectedTei: any, handleCloseApproval: () => void }) {
+    const config = useConfig()
     const engine = useDataEngine()
     const { show, hide } = useShowAlerts()
     const { dataStoreData, program: programData } = useGetSelectedKeys()
@@ -29,6 +26,30 @@ export function useTransferTEI({ selectedTei, handleCloseApproval }: { selectedT
     const { uploadValues } = useUploadEvents()
     const { getEventsByEnrollment, loading: loadingEvents } = useGetEventsByEnrollment()
     const programStagesToTransfer = useGetUsedProgramStages()
+    const transferOwnership = async ({ program, ou, trackedEntityInstance }: { program: string, ou: string, trackedEntityInstance: string }) => {
+        let lastError: any
+        const candidates = getOwnershipTransferQueryPropsCandidates({
+            queryProps: {
+                program,
+                ou,
+                trackedEntityInstance
+            },
+            apiVersion: config.apiVersion
+        })
+
+        for (const candidate of candidates) {
+            try {
+                await engine.mutate(TRANSFERQUERY, {
+                    variables: candidate
+                })
+                return
+            } catch (error) {
+                lastError = error
+            }
+        }
+
+        throw lastError
+    }
 
     const transferTEI = async (ou: any) => {
         setloading(true)
@@ -44,12 +65,10 @@ export function useTransferTEI({ selectedTei, handleCloseApproval }: { selectedT
         }
 
         else {
-            await engine.mutate(TRANSFERQUERY, {
-                variables: {
-                    program: selectedTei?.programId,
-                    ou,
-                    trackedEntityInstance: selectedTei?.trackedEntity
-                }
+            await transferOwnership({
+                program: selectedTei?.programId,
+                ou,
+                trackedEntityInstance: selectedTei?.trackedEntity
             })
                 .then(async () => {
                     const transferStatus = dataStoreData.transfer?.statusOptions?.find((x: any) => x.configKey === "approvedCode")?.code
